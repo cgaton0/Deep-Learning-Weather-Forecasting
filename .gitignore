@@ -26,7 +26,6 @@ python_env/
 # ----------------------------
 
 # Datasets
-data/
 *.csv
 *.tsv
 *.zip
@@ -35,9 +34,11 @@ data/
 *.hdf5
 *.npz
 *.npy
+*.pkl
+*.parquet
+*.npy
 
 # Model weights and checkpoints
-models/
 *.ckpt
 *.ckpt.*
 *.pt
@@ -45,6 +46,7 @@ models/
 *.tflite
 *.pb
 *.onnx
+*.keras
 checkpoint/
 checkpoints/
 
