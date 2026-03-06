@@ -1,87 +1,189 @@
+"""
+Scaling utilities for time series datasets.
+
+This module provides:
+- Scaling train/val/test splits using a scaler fitted on the training data.
+- Inverse scaling for a single target feature when predictions are multistep.
+- Persistence helpers for saving/loading scalers.
+"""
+
+import logging
+from pathlib import Path
+from typing import Optional, Tuple, Union
+
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler
 
-from src.utils import project_path
+from src.utils import ensure_dir, project_path
+
+logger = logging.getLogger(__name__)
+
+PathLike = Union[str, Path]
 
 
-def scaler_minmax_df(train_df, val_df, test_df):
-    """Recibe un dataframe para train, val y test.
-    Devuelve un dataframe escalado con MinMaxScaler y los escaladores.
-    Args:
-        train_df (pd.DataFrame): Dataframe para train.
-        val_df (pd.DataFrame): Dataframe para validación.
-        test_df (pd.DataFrame): Dataframe para test.
-    Returns:
-        scaled_train_df (pd.DataFrame): Dataframe para train escalado.
-        scaled_val_df (pd.DataFrame): Dataframe para validación
-        scaled_test_df (pd.DataFrame): Dataframe para test escalado.
-        scaler (MinMaxScaler): Escalador.
+def scale_splits(
+    train_df: pd.DataFrame,
+    val_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    scaler: Optional[TransformerMixin] = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, TransformerMixin]:
     """
+    Scale train/validation/test splits using a scaler fitted on the training set.
 
-    # Creamos el escalador.
-    scaler = StandardScaler()
+    Parameters
+    ----------
+    train_df : pd.DataFrame
+        Training dataframe.
+    val_df : pd.DataFrame
+        Validation dataframe.
+    test_df : pd.DataFrame
+        Test dataframe.
+    scaler : sklearn TransformerMixin, optional
+        Scaler/transformer implementing fit/transform (e.g., StandardScaler).
+        If None, a StandardScaler is used.
 
-    # Escalamos las variables.
+    Returns
+    -------
+    scaled_train_df : pd.DataFrame
+        Scaled training dataframe.
+    scaled_val_df : pd.DataFrame
+        Scaled validation dataframe.
+    scaled_test_df : pd.DataFrame
+        Scaled test dataframe.
+    scaler : sklearn TransformerMixin
+        The fitted scaler.
+    """
+    if scaler is None:
+        scaler = StandardScaler()
+
+    logger.info("Fitting scaler on training split: %s", scaler.__class__.__name__)
+
+    scaled_train = scaler.fit_transform(train_df)
+    scaled_val = scaler.transform(val_df)
+    scaled_test = scaler.transform(test_df)
+
     scaled_train_df = pd.DataFrame(
-        scaler.fit_transform(train_df), columns=train_df.columns, index=train_df.index
+        scaled_train, columns=train_df.columns, index=train_df.index
     )
-    scaled_val_df = pd.DataFrame(
-        scaler.transform(val_df), columns=val_df.columns, index=val_df.index
-    )
+    scaled_val_df = pd.DataFrame(scaled_val, columns=val_df.columns, index=val_df.index)
     scaled_test_df = pd.DataFrame(
-        scaler.transform(test_df), columns=test_df.columns, index=test_df.index
+        scaled_test, columns=test_df.columns, index=test_df.index
     )
 
     return scaled_train_df, scaled_val_df, scaled_test_df, scaler
 
 
-def inverse_scaler(data_scaled, scaler, df_columns, feature_name="T_(degC)"):
-    """Recibe un array escalado, un escalador y una lista con los nombres de
-    las columnas.
-    Devuelve un array desescalado.
-    Args:
-        data_scaled (np.array): Array escalado.
-        scaler (MinMaxScaler): Escalador.
-        df_columns (list): Lista con los nombres de las columnas.
-        feature_name (string): Variable a desescalar.
-    Returns:
-        data_rescaled (np.array): Array desescalado.
+def inverse_scale_feature(
+    data_scaled: np.ndarray,
+    scaler: TransformerMixin,
+    df_columns: pd.Index,
+    feature_name: str = "T_(degC)",
+) -> np.ndarray:
     """
+    Inverse-scale a single feature from scaled multistep predictions.
 
-    # Índice de la variable que desescalamos
-    temp_idx = df_columns.get_loc(feature_name)
-    n, horizon = data_scaled.shape
+    This is useful when you predict only one target feature (e.g., temperature),
+    but the scaler was fitted on multiple features.
 
-    data_rescaled = np.zeros_like(data_scaled)
+    The input array is expected to be shaped as (n_samples, horizon).
 
-    # Para cada horizonte, se construye un dummy y se desescala
+    Parameters
+    ----------
+    data_scaled : np.ndarray
+        Scaled predictions of shape (n_samples, horizon).
+    scaler : sklearn TransformerMixin
+        Fitted scaler with an inverse_transform method (e.g., StandardScaler).
+    df_columns : pd.Index
+        Column names used during scaling (must include feature_name).
+    feature_name : str
+        Name of the feature to inverse-scale.
+
+    Returns
+    -------
+    np.ndarray
+        Inverse-scaled predictions with shape (n_samples, horizon).
+    """
+    if data_scaled.ndim != 2:
+        raise ValueError(
+            "data_scaled must be a 2D array of shape (n_samples, horizon)."
+        )
+
+    if feature_name not in df_columns:
+        raise KeyError(f"feature_name='{feature_name}' not found in df_columns.")
+
+    if not hasattr(scaler, "inverse_transform"):
+        raise TypeError("Provided scaler does not implement inverse_transform().")
+
+    feature_idx = int(df_columns.get_loc(feature_name))
+    n_samples, horizon = data_scaled.shape
+
+    logger.info(
+        "Inverse-scaling feature '%s' (index=%d) for horizon=%d.",
+        feature_name,
+        feature_idx,
+        horizon,
+    )
+
+    data_rescaled = np.empty_like(data_scaled, dtype=float)
+
+    # For each horizon step, create a dummy matrix with zeros and place the target
+    # feature values in the correct column, then inverse transform and extract it back.
+    n_features = len(df_columns)
+    dummy = np.zeros((n_samples, n_features), dtype=float)
+
     for h in range(horizon):
-        dummy = np.zeros((n, len(df_columns)))
-        dummy[:, temp_idx] = data_scaled[:, h]
-
+        dummy.fill(0.0)
+        dummy[:, feature_idx] = data_scaled[:, h]
         inv = scaler.inverse_transform(dummy)
-        data_rescaled[:, h] = inv[:, temp_idx]
+        data_rescaled[:, h] = inv[:, feature_idx]
 
     return data_rescaled
 
 
-def save_scaler(scaler, path):
+def save_scaler(scaler: TransformerMixin, path: PathLike) -> Path:
     """
-    Guarda un escalador en disco usando joblib.
+    Save a fitted scaler to disk using joblib.
+
+    Parameters
+    ----------
+    scaler : sklearn TransformerMixin
+        Fitted scaler to persist.
+    path : str or Path
+        Path relative to the project root where the scaler will be saved.
+
+    Returns
+    -------
+    Path
+        Absolute path of the saved scaler.
     """
-    path = project_path(path)
+    abs_path = project_path(str(path))
+    ensure_dir(abs_path.parent)
 
-    joblib.dump(scaler, path)
+    logger.info("Saving scaler to: %s", abs_path)
+    joblib.dump(scaler, abs_path)
+
+    return abs_path
 
 
-def load_scaler(path):
+def load_scaler(path: PathLike) -> TransformerMixin:
     """
-    Carga un escalador previamente guardado.
+    Load a previously saved scaler from disk.
+
+    Parameters
+    ----------
+    path : str or Path
+        Path relative to the project root where the scaler is stored.
+
+    Returns
+    -------
+    sklearn TransformerMixin
+        Loaded scaler instance.
     """
+    abs_path = project_path(str(path))
+    logger.info("Loading scaler from: %s", abs_path)
 
-    path = project_path(path)
-
-    scaler = joblib.load(path)
+    scaler = joblib.load(abs_path)
     return scaler

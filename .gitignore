@@ -3,100 +3,83 @@
 # ----------------------------
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.so
-*.dylib
-*.egg*
-*.whl
-
-# Byte-compiled
 *$py.class
 
+# C extensions / build outputs
+*.so
+*.dylib
+*.pyd
+
+# Packaging
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+
+# ----------------------------
 # Virtual environments
-env/
-venv/
+# ----------------------------
 .venv/
+venv/
+env/
 ENV/
 env.bak/
 python_env/
 
 # ----------------------------
-# Data Science / ML / DL
+# Jupyter
 # ----------------------------
+.ipynb_checkpoints/
+*.nbconvert.*
+*.ipynb~
 
-# Datasets
-*.csv
-*.tsv
-*.zip
-*.gz
-*.h5
-*.hdf5
-*.npz
-*.npy
-*.pkl
-*.parquet
+# ----------------------------
+# Data & Outputs (project-specific)
+# ----------------------------
+data/processed/**
+data/raw/**
+outputs/figures/**
+outputs/metrics/**
+outputs/models/**
+outputs/predictions/**
+!data/**/.gitkeep
+!outputs/**/.gitkeep
+!outputs/figures/rmse_over_horizon.png
 
-# Model weights and checkpoints
+# ----------------------------
+# ML / DL artifacts (extra safety)
+# ----------------------------
 *.ckpt
 *.ckpt.*
+*.h5
+*.hdf5
+*.keras
+*.onnx
+*.pb
+*.tflite
 *.pt
 *.pth
-*.tflite
-*.pb
-*.onnx
-*.keras
-checkpoint/
-checkpoints/
+*.npy
+*.npz
+*.pkl
 
-# TensorFlow logs
+# TensorBoard / logs
 logs/
 tensorboard/
 *.event*
 
-# ML outputs
-results/
-plots/
-figures/
-*.png
-*.jpg
-
 # ----------------------------
-# Jupyter / Colab
-# ----------------------------
-.ipynb_checkpoints/
-*.ipynb_convert/
-*.nbconvert/
-*.nb.html
-
-# Colab temporary files
-*.ipynb~
-*/.colab
-*/.colab-history
-
-# ----------------------------
-# System / Editor garbage
+# OS / Editors
 # ----------------------------
 .DS_Store
 Thumbs.db
-
-# VSCode
 .vscode/
-.settings/
-
-# PyCharm
 .idea/
 *.iml
 
 # ----------------------------
-# Build artifacts
-# ----------------------------
-build/
-dist/
-*.spec
-
-# ----------------------------
-# Other
+# Misc
 # ----------------------------
 *.log
 *.tmp

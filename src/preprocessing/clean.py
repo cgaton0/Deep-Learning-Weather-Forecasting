@@ -1,23 +1,41 @@
+"""
+Data cleaning utilities for the Jena Climate dataset.
+"""
+
 import logging
 
-logging.basicConfig(level=logging.INFO)
+import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
-def clean_columns(df):
+def clean_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Limpia y selecciona las columnas utilizadas del Jena Climate dataset.
-    Pasos:
-    - Normaliza nombres de columnas(Substituye espacios).
-    - Selecciona un subconjunto de las columnas.
-    - Elimina valores físicamente impossibles.
+    Clean and select the feature columns used from the Jena Climate dataset.
+
+    Steps:
+    - Normalize column names by replacing spaces with underscores.
+    - Select a subset of relevant columns.
+    - Fix physically impossible values (e.g., negative wind speed is set to 0).
+    - Warn if NaN values are present.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe containing the raw Jena Climate data.
+
+    Returns
+    -------
+    pd.DataFrame
+        A cleaned dataframe containing only the selected columns.
     """
+    logger.info("Cleaning dataframe...")
 
-    logging.info("Cleaning dataframe...")
-
-    # Normalizar los nombres de las columnas.
+    # Normalize column names.
+    df = df.copy()
     df.columns = [col.replace(" ", "_") for col in df.columns]
 
-    # Seleccionar columnas que se utilizaran en el análisis.
+    # Select columns used for training/evaluation.
     selected_columns = [
         "p_(mbar)",
         "T_(degC)",
@@ -26,18 +44,17 @@ def clean_columns(df):
         "wv_(m/s)",
         "wd_(deg)",
     ]
-
     df = df[selected_columns].copy()
 
-    # Eliminar valores erróneos.
-    # Velocidad del viento no puede ser negativa.
-    invalid_count = (df["wv_(m/s)"] < 0).sum()
+    # Fix invalid values: wind speed cannot be negative.
+    invalid_mask = df["wv_(m/s)"] < 0
+    invalid_count = int(invalid_mask.sum())
     if invalid_count > 0:
-        logging.info(f"Fixing {invalid_count} invalid wind-speed values (<0).")
-        df.loc[df["wv_(m/s)"] < 0, "wv_(m/s)"] = 0
+        logger.info("Fixing %d invalid wind-speed values (<0).", invalid_count)
+        df.loc[invalid_mask, "wv_(m/s)"] = 0
 
-    # Comprobar si existen valores nulos.
-    if df.isna().sum().sum() > 0:
-        logging.warning("NaN values detected in the dataset.")
+    # Check for missing values.
+    if df.isna().any().any():
+        logger.warning("NaN values detected in the dataset.")
 
     return df

@@ -1,9 +1,15 @@
-matplotlib==3.10.7
-pandas==2.3.3
-numpy==2.3.5
-seaborn==0.13.2
-scikit-learn==1.7.2
-tensorflow==2.20.0
-keras==3.12.0
-joblib==1.5.2
-fastparquet==2024.11.0
+# Core
+numpy
+pandas
+
+# Serialization
+pyarrow
+joblib
+
+# Machine Learning
+keras
+scikit-learn
+tensorflow
+
+# Visualization
+matplotlib
