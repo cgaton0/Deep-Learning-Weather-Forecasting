@@ -59,6 +59,8 @@ def load_raw_data() -> pd.DataFrame:
 
 def build_dataset(
     downsample_time: Optional[str] = "1h",
+    aggregation_method: str = "mean",
+    missing_method: str = "interpolate",
     test_ratio: float = 0.15,
     val_ratio: float = 0.15,
     window_size: int = 72,
@@ -94,6 +96,12 @@ def build_dataset(
     ----------
     downsample_time : str or None
         Resampling frequency string (e.g., "1h"). If None, no resampling is applied.
+    aggregation_method : str, default="mean"
+        Aggregation method used during resampling.
+        Supported values are: "mean", "median".
+    missing_method : str, default="interpolate"
+        Method used to handle missing values after resampling.
+        Supported values are: "bfill", "ffill", "interpolate".
     test_ratio : float
         Proportion of samples assigned to the test split.
     val_ratio : float
@@ -150,7 +158,12 @@ def build_dataset(
     df = clean_columns(df)
 
     logger.info("Downsampling with rule: %s", downsample_time)
-    df = downsample_df(df, freq=downsample_time)
+    df = downsample_df(
+        df,
+        downsample_time=downsample_time,
+        aggregation_method=aggregation_method,
+        missing_method=missing_method,
+    )
 
     logger.info("Creating sequential splits...")
     train_df, val_df, test_df = create_splits_df(

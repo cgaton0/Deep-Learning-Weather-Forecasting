@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 # Hyperparameters
 # ----------------------------
 DOWNSAMPLE_TIME = "1h"
+AGGREGATION_METHOD = "mean"
+MISSING_METHOD = "interpolate"
+
 TEST_RATIO = 0.15
 VAL_RATIO = 0.15
 
@@ -114,6 +117,8 @@ def main() -> None:
 
         x_train, y_train, x_val, y_val, x_test, y_test, scaler = build_dataset(
             downsample_time=DOWNSAMPLE_TIME,
+            aggregation_method=AGGREGATION_METHOD,
+            missing_method=MISSING_METHOD,
             test_ratio=TEST_RATIO,
             val_ratio=VAL_RATIO,
             window_size=WINDOW_SIZE,
